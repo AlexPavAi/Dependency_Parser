@@ -25,6 +25,7 @@ class net_prototype(nn.Module):
         vm = vm.repeat(1, vm.shape[1], 1).view(1, vm.shape[1], vm.shape[1], -1)
         vm = vm.transpose(1, 2)
         out = vh + vm
+        out = F.tanh(out)
         out = self.out_layer(out)
         out = out[:, :, 1:]
         return out
