@@ -1,8 +1,8 @@
 from torch import nn
-from torch.functional import F
 import torch
 
-class net_prototype(nn.Module):
+
+class BaseNet(nn.Module):
     def __init__(self, word_emb_dim, tag_emb_dim, lstm_hidden_dim, mlp_hidden_dim, word_vocab_size, tag_vocab_size):
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -17,7 +17,7 @@ class net_prototype(nn.Module):
     def forward(self, word_idx, tag_idx):
         word_embeds = self.word_embedding(word_idx.to(self.device))
         tag_embeds = self.tag_embedding(tag_idx.to(self.device))
-        x = word_embeds + tag_embeds
+        x = torch.cat((word_embeds, tag_embeds), dim=2)
         lstm_out, _ = self.lstm(x)
         vh = self.layer1_head(lstm_out)
         vm = self.layer1_modifier(lstm_out)
@@ -25,8 +25,15 @@ class net_prototype(nn.Module):
         vh = vh.transpose(1, 2)
         vm = vm.repeat(1, vm.shape[1], 1).view(vm.shape[0], vm.shape[1], vm.shape[1], -1)
         out = vh + vm
-        out = F.tanh(out)
+        out = torch.tanh(out)
         out = self.out_layer(out).squeeze(3)
         out = out[:, :, 1:]
         return out
 
+
+def nll_loss(out, true_heads):
+    sentence_len = true_heads.shape[0]
+    true_scores = out[:, true_heads, torch.arange(sentence_len)]
+    sum_exp = torch.sum(torch.exp(out), dim=1)
+    log_sum_exp = torch.log(sum_exp)
+    return torch.mean(- true_scores + log_sum_exp)
