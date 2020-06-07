@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,7 +18,7 @@ UNKNOWN_TOKEN = "<unk>"
 PAD_TOKEN = "<pad>" # Optional: this is used to pad a batch of sentences in different lengths.
 SPECIAL_TOKENS = [PAD_TOKEN, UNKNOWN_TOKEN]
 
-def get_vocabs(list_of_paths):
+def get_vocabs(file_path):
     """
         Extract vocabs from given datasets. Return a word2ids and tag2idx.
         :param file_paths: a list with a full path for all corpuses
@@ -27,16 +28,15 @@ def get_vocabs(list_of_paths):
     """
     word_dict = defaultdict(int)
     pos_dict = defaultdict(int)
-    for file_path in list_of_paths:
-        with open(file_path) as f:
-            for line in f:
-                if line.strip():
-                    splited_words = line.split()
-                    print(line)
-                    word = splited_words[1]
-                    pos_tag = splited_words[3]
-                    word_dict[word] += 1
-                    pos_dict[pos_tag] += 1
+    with open(file_path) as f:
+        for line in f:
+            if line.strip():
+                splited_words = line.split()
+                # print(line)
+                word = splited_words[1]
+                pos_tag = splited_words[3]
+                word_dict[word] += 1
+                pos_dict[pos_tag] += 1
 
     index_dict_word = Vocab(Counter(word_dict), specials=SPECIAL_TOKENS)
     index_dict_pos = Vocab(Counter(pos_dict), specials=SPECIAL_TOKENS)
@@ -44,10 +44,10 @@ def get_vocabs(list_of_paths):
 
 
 class PosDataReader:
-    def __init__(self, file, word_dict, pos_dict):
+    def __init__(self, file):
         self.file = file
-        self.word_dict = word_dict
-        self.pos_dict = pos_dict
+        # self.word_dict = word_dict
+        # self.pos_dict = pos_dict
         self.sentences = []
         self.__readData__()
 
@@ -58,7 +58,7 @@ class PosDataReader:
             for line in f:
                 if line.strip():
                     splited_words = line.split()
-                    print(line)
+                    # print(line)
                     word = splited_words[1]
                     pos_tag = splited_words[3]
                     head_index = splited_words[6]
@@ -73,13 +73,14 @@ class PosDataReader:
 
 
 class PosDataset(Dataset):
-    def __init__(self, word_dict, pos_dict, dir_path: str, subset: str,
+    def __init__(self, dir_path: str, subset: str,
                  padding=False, word_embeddings=None):
         super().__init__()
         self.subset = subset  # One of the following: [train, test]
-        self.file = dir_path + subset + ".labeled"
-        self.datareader = PosDataReader(self.file, word_dict, pos_dict)
-        self.vocab_size = len(self.datareader.word_dict)
+        # self.file = dir_path + subset + ".labeled"
+        self.file = os.path.join(dir_path,subset)+".labeled"
+        self.datareader = PosDataReader(self.file)
+        # self.vocab_size = len(self.datareader.word_dict)
         _, _, self.word_idx_mappings, self.pos_idx_mappings = get_vocabs(self.file)
         self.sentences_dataset = self.convert_sentences_to_dataset(padding)
 
@@ -116,8 +117,12 @@ class PosDataset(Dataset):
                                                                      sentence_len_list))}
 
 def main():
-    list_of_pathes = ["data/train.labeled"]
-    get_vocabs(list_of_pathes)
+    data_dir = "data"
+    # get_vocabs(list_of_pathes)
+    dir_path ="data"
+    str ="train"
+    train = PosDataset(data_dir,str, padding=False)
+    print("")
 
 if __name__ =='__main__':
     main()
