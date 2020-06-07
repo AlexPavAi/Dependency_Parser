@@ -9,17 +9,16 @@ class WordDropout(nn.Module):
         self.unk_ind = unk_ind
         self.device = device
 
-    def forward(self, word_idx):
-        drop_idx = torch.rand(word_idx.shape, device=self.device) < self.p
-        word_idx[drop_idx] = self.unk_ind
+    def forward(self, word_idx, train):
+        if train:
+            drop_idx = torch.rand(word_idx.shape, device=self.device) < self.p
+            word_idx[drop_idx] = self.unk_ind
 
 
 class BaseNet(nn.Module):
-    def __init__(self, word_emb_dim, tag_emb_dim, lstm_hidden_dim, mlp_hidden_dim, word_vocab_size, tag_vocab_size,
-                 word_dropout=0.1, unk_ind=0):
+    def __init__(self, word_emb_dim, tag_emb_dim, lstm_hidden_dim, mlp_hidden_dim, word_vocab_size, tag_vocab_size):
         super().__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.word_dropout = WordDropout(p=word_dropout, unk_ind=unk_ind, device=self.device)
         self.word_embedding = nn.Embedding(word_vocab_size, word_emb_dim)  # (B, len(sentence))
         self.tag_embedding = nn.Embedding(tag_vocab_size, tag_emb_dim)    # (B, len(sentence))
         self.lstm = nn.LSTM(input_size=word_emb_dim + tag_emb_dim, hidden_size=lstm_hidden_dim, num_layers=2,
