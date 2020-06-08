@@ -4,6 +4,7 @@ from torchtext.vocab import Vocab
 from torch.utils.data.dataset import Dataset
 from collections import Counter
 from collections import defaultdict
+from torch.utils.data.dataloader import DataLoader
 
 UNKNOWN_TOKEN = "<unk>"
 ROOT_TOKEN = "<ROOT>"  # Optional: this is used to pad a batch of sentences in different lengths.
@@ -53,7 +54,7 @@ class PosDataReader:
                     # print(line)
                     word = splited_words[1]
                     pos_tag = splited_words[3]
-                    head_index = splited_words[6]
+                    head_index = int(splited_words[6])
                     cur_sentence.append((word, pos_tag, head_index))
                 else:
                     self.sentences.append(cur_sentence)
@@ -75,6 +76,7 @@ class PosDataset(Dataset):
         # self.vocab_size = len(self.datareader.word_dict)
         _, _, self.word_idx_mappings, self.pos_idx_mappings = get_vocabs(self.file)
         self.sentences_dataset = self.convert_sentences_to_dataset()
+        self.name = "here for debugging"
 
     def __len__(self):
         return len(self.sentences_dataset)
@@ -100,6 +102,7 @@ class PosDataset(Dataset):
 
             sentence_word_idx_list.append(torch.tensor(words_idx_list, dtype=torch.long, requires_grad=False))
             sentence_pos_idx_list.append(torch.tensor(pos_idx_list, dtype=torch.long, requires_grad=False))
+            sentence_head_list.append(torch.tensor(head_idx_list, dtype=torch.long, requires_grad=False))
             sentence_len_list.append(sentence_len)
 
         return {i: sample_tuple for i, sample_tuple in enumerate(zip(sentence_word_idx_list,
@@ -114,6 +117,7 @@ def main():
     dir_path = "data"
     str = "train"
     train = PosDataset(data_dir, str)
+    train_dataloader = DataLoader(train, shuffle=True)
     print("")
 
 
