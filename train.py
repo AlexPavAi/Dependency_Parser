@@ -1,14 +1,20 @@
 import torch
+import os
+import torch.nn as nn
 from BaseNet import BaseNet, nll_loss
 from torch import optim
 from data_loader import PosDataset
 from torch.utils.data import DataLoader
 from inference import compute_uas
 
+
+os.environ["CUDA_VISIBLE_DEVICES"]='4,5,6'
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 def train():
     EPOCHS = 15
-    print_iter = 10
-    test_epoch = 3
+    print_iter = 100
+    test_epoch = 1
 
     train_dataset = PosDataset('data', 'train')
     train_loader = DataLoader(train_dataset, shuffle=True)
@@ -16,12 +22,25 @@ def train():
     test_loader = DataLoader(test_dataset, shuffle=False)
     model: BaseNet = BaseNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125, mlp_hidden_dim=100,
                              word_vocab_size=len(train_dataset.word_idx_mappings),
-                             tag_vocab_size=len(train_dataset.pos_idx_mappings))
+                             tag_vocab_size=len(train_dataset.pos_idx_mappings),
+                             appearance_count=train_dataset.word_idx_to_appearance, dropout_a=5,
+                             unk_word_ind=train_dataset.unk_word_idx)
 
     use_cuda = torch.cuda.is_available()
 
-    if use_cuda:
-        model.cuda()
+    # if use_cuda:
+    #     model.cuda()
+    #     print("running of GPU")
+
+    # else:
+    #     print("running of CPU")
+
+    if torch.cuda.device_count() > 1:
+        print("Running on", torch.cuda.device_count(), "GPUs.")
+        model = nn.DataParallel(model)
+    else:
+        print("Running on single GPU.")
+    model.to(device)
 
     # Define the loss function as the Negative Log Likelihood loss (NLLLoss)
 
@@ -39,7 +58,9 @@ def train():
             true_heads = true_heads.squeeze(0)
 
             scores = model(words_idx_tensor, pos_idx_tensor)
-            loss = nll_loss(scores, true_heads.to(model.device))
+            # loss = nll_loss(scores, true_heads.to(model.device))
+            loss = nll_loss(scores.to("cpu"), true_heads)
+
             loss = loss / acumulate_grad_steps
             loss.backward()
 
