@@ -3,18 +3,22 @@ from BaseNet import BaseNet, nll_loss
 from torch import optim
 from data_loader import PosDataset
 from torch.utils.data import DataLoader
+from inference import compute_uas
 
 def train():
     EPOCHS = 15
+    print_iter = 10
+    test_epoch = 3
 
     train_dataset = PosDataset('data', 'train')
     train_loader = DataLoader(train_dataset, shuffle=True)
-    model = BaseNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125, mlp_hidden_dim=100,
-                    word_vocab_size=len(train_dataset.word_idx_mappings),
-                    tag_vocab_size=len(train_dataset.pos_idx_mappings))
+    test_dataset = PosDataset('data', 'test')
+    test_loader = DataLoader(test_dataset, shuffle=False)
+    model: BaseNet = BaseNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125, mlp_hidden_dim=100,
+                             word_vocab_size=len(train_dataset.word_idx_mappings),
+                             tag_vocab_size=len(train_dataset.pos_idx_mappings))
 
     use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda:0" if use_cuda else "cpu")
 
     if use_cuda:
         model.cuda()
@@ -30,25 +34,36 @@ def train():
     epochs = EPOCHS
     for epoch in range(epochs):
         printable_loss = 0  # To keep track of the loss value
-        i = 0
-        for batch_idx, input_data in enumerate(train_loader):
-            i += 1
-            words_idx_tensor, pos_idx_tensor, sentence_length = input_data
+        for i, input_data in enumerate(train_loader):
+            words_idx_tensor, pos_idx_tensor, true_heads, _ = input_data
+            true_heads = true_heads.squeeze(0)
 
-            tag_scores = model(words_idx_tensor)
-            tag_scores = tag_scores.unsqueeze(0).permute(0, 2, 1)
-            # print("tag_scores shape -", tag_scores.shape)
-            # print("pos_idx_tensor shape -", pos_idx_tensor.shape)
-            loss = nll_loss(tag_scores, pos_idx_tensor.to(device))
+            scores = model(words_idx_tensor, pos_idx_tensor)
+            loss = nll_loss(scores, true_heads.to(model.device))
             loss = loss / acumulate_grad_steps
             loss.backward()
 
-            if i % acumulate_grad_steps == 0:
+            if (i+1) % acumulate_grad_steps == 0:
                 optimizer.step()
                 model.zero_grad()
-            printable_loss += loss.item()
-            _, indices = torch.max(tag_scores, 1)
-            print(printable_loss)
+                printable_loss += loss.item()
+
+            if (i+1) % (acumulate_grad_steps * print_iter) == 0:
+                print("epoch", epoch+1, "iter", (i+1)//acumulate_grad_steps, "loss:", printable_loss)
+                printable_loss = 0
+        if (epoch + 1) % test_epoch == 0:
+            model.eval()
+            num_correct = 0
+            num_total = 0
+            for i, input_data in enumerate(test_loader):
+                words_idx_tensor, pos_idx_tensor, true_heads, _ = input_data
+                true_heads = true_heads.squeeze(0)
+                num_total += true_heads.shape[0]
+                scores = model(words_idx_tensor, pos_idx_tensor)
+                _, curr_num_correct = compute_uas(scores, true_heads)
+                num_correct += curr_num_correct
+            print("UAS on test:", num_correct/num_total)
+            model.train()
 
 
 train()

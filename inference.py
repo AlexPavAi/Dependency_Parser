@@ -17,7 +17,7 @@ def infer_heads(scores, squeeze=True):
         scores = torch.squeeze(scores, 0)
     length = scores.shape[0]
     weights = np.empty((length, length))
-    weights[:, 1:] = scores.numpy()
+    weights[:, 1:] = scores.detach().cpu().numpy()
     weights[:, :1] = float('-inf')
     return decode_mst(weights, length, has_labels=False)[0][1:]
 
@@ -33,6 +33,7 @@ def compute_uas(scores, true_heads, squeeze=True):
     :param true_heads: the true heads
     :return: the UAS and the number of correct dependencies (in that order)
     """
+    true_heads = true_heads.numpy()
     inferred_heads = infer_heads(scores, squeeze=squeeze)
     num_correct = np.sum(true_heads == inferred_heads)
     return num_correct/len(true_heads), num_correct
@@ -51,4 +52,5 @@ def test_inference():
     scores = torch.empty((1, 4, 3))
     for (i, j), w in weights.items():
         scores[0][i][j-1] = w
-    print(compute_uas(scores, np.array([2, 0, 2])))
+    print(compute_uas(scores, torch.tensor([2, 0, 2])))
+
