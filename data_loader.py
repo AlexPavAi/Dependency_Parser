@@ -32,8 +32,11 @@ def get_vocabs(file_path):
                 pos_dict[pos_tag] += 1
 
     index_dict_word = Vocab(Counter(word_dict), specials=SPECIAL_TOKENS)
-    index_dict_pos = Vocab(Counter(pos_dict), specials=[ROOT_TOKEN])
-    return word_dict, pos_dict, index_dict_word.stoi, index_dict_pos.stoi
+    index_dict_pos = Vocab(Counter(pos_dict), specials=SPECIAL_TOKENS)
+    word_idx_to_appearance = torch.zeros(len(index_dict_word.stoi), dtype=torch.float)
+    for word in word_dict:
+        word_idx_to_appearance[index_dict_word.stoi[word]] = word_dict.get(word, float('inf'))
+    return word_dict, pos_dict, index_dict_word.stoi, index_dict_pos.stoi, word_idx_to_appearance
 
 
 class PosDataReader:
@@ -74,7 +77,9 @@ class PosDataset(Dataset):
         self.file = os.path.join(dir_path, subset) + ".labeled"
         self.datareader = PosDataReader(self.file)
         # self.vocab_size = len(self.datareader.word_dict)
-        _, _, self.word_idx_mappings, self.pos_idx_mappings = get_vocabs(self.file)
+        _, _, self.word_idx_mappings, self.pos_idx_mappings, self.word_idx_to_appearance = get_vocabs(self.file)
+        self.unk_word_idx = self.word_idx_mappings[UNKNOWN_TOKEN]
+        self.unk_pos_idx = self.pos_idx_mappings[UNKNOWN_TOKEN]
         self.sentences_dataset = self.convert_sentences_to_dataset()
         self.name = "here for debugging"
 
@@ -95,8 +100,8 @@ class PosDataset(Dataset):
             pos_idx_list = [self.pos_idx_mappings[ROOT_TOKEN]]
             head_idx_list = []
             for word, pos, head in sentence:
-                words_idx_list.append(self.word_idx_mappings.get(word))
-                pos_idx_list.append(self.pos_idx_mappings.get(pos))
+                words_idx_list.append(self.word_idx_mappings.get(word, self.unk_word_idx))
+                pos_idx_list.append(self.pos_idx_mappings.get(pos, self.unk_pos_idx))
                 head_idx_list.append(head)
             sentence_len = len(words_idx_list)
 

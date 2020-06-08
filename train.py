@@ -16,7 +16,9 @@ def train():
     test_loader = DataLoader(test_dataset, shuffle=False)
     model: BaseNet = BaseNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125, mlp_hidden_dim=100,
                              word_vocab_size=len(train_dataset.word_idx_mappings),
-                             tag_vocab_size=len(train_dataset.pos_idx_mappings))
+                             tag_vocab_size=len(train_dataset.pos_idx_mappings),
+                             appearance_count=train_dataset.word_idx_to_appearance, dropout_a=0.25,
+                             unk_word_ind=train_dataset.unk_word_idx)
 
     use_cuda = torch.cuda.is_available()
 
