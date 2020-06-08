@@ -18,7 +18,7 @@ def train():
 
     train_dataset = PosDataset('data', 'train')
     train_loader = DataLoader(train_dataset, shuffle=True)
-    test_dataset = PosDataset('data', 'test')
+    test_dataset = PosDataset('data', 'test', vocab_dataset=train_dataset)
     test_loader = DataLoader(test_dataset, shuffle=False)
     model: BaseNet = BaseNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125, mlp_hidden_dim=100,
                              word_vocab_size=len(train_dataset.word_idx_mappings),

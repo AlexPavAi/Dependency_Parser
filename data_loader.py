@@ -11,32 +11,36 @@ ROOT_TOKEN = "<ROOT>"  # Optional: this is used to pad a batch of sentences in d
 SPECIAL_TOKENS = [UNKNOWN_TOKEN, ROOT_TOKEN]
 
 
-def get_vocabs(file_path):
+def get_vocabs(file_path, from_other_dataset=None):
     """
         Extract vocabs from given datasets. Return a word2ids and tag2idx.
+        :param from_other_dataset: getting vocab from the dataset from_dataset
         :param file_path: full path of the corpuses
             Return:
               - word2idx
               - tag2idx
     """
-    word_dict = defaultdict(int)
-    pos_dict = defaultdict(int)
-    with open(file_path) as f:
-        for line in f:
-            if line.strip():
-                splited_words = line.split()
-                # print(line)
-                word = splited_words[1]
-                pos_tag = splited_words[3]
-                word_dict[word] += 1
-                pos_dict[pos_tag] += 1
+    if from_other_dataset is None:
+        word_dict = defaultdict(int)
+        pos_dict = defaultdict(int)
+        with open(file_path) as f:
+            for line in f:
+                if line.strip():
+                    splited_words = line.split()
+                    # print(line)
+                    word = splited_words[1]
+                    pos_tag = splited_words[3]
+                    word_dict[word] += 1
+                    pos_dict[pos_tag] += 1
 
-    index_dict_word = Vocab(Counter(word_dict), specials=SPECIAL_TOKENS)
-    index_dict_pos = Vocab(Counter(pos_dict), specials=SPECIAL_TOKENS)
-    word_idx_to_appearance = torch.zeros(len(index_dict_word.stoi), dtype=torch.float)
-    for word in word_dict:
-        word_idx_to_appearance[index_dict_word.stoi[word]] = word_dict.get(word, float('inf'))
-    return word_dict, pos_dict, index_dict_word.stoi, index_dict_pos.stoi, word_idx_to_appearance
+        index_dict_word = Vocab(Counter(word_dict), specials=SPECIAL_TOKENS)
+        index_dict_pos = Vocab(Counter(pos_dict), specials=SPECIAL_TOKENS)
+        word_idx_to_appearance = torch.zeros(len(index_dict_word.stoi), dtype=torch.float)
+        for word in word_dict:
+            word_idx_to_appearance[index_dict_word.stoi[word]] = word_dict.get(word, float('inf'))
+        return index_dict_word.stoi, index_dict_pos.stoi, word_idx_to_appearance
+    else:
+        return from_other_dataset.word_idx_mappings, from_other_dataset.pos_idx_mappings, from_other_dataset.word_idx_to_appearance
 
 
 class PosDataReader:
@@ -69,7 +73,7 @@ class PosDataReader:
 
 
 class PosDataset(Dataset):
-    def __init__(self, dir_path: str, subset: str,
+    def __init__(self, dir_path: str, subset: str, vocab_dataset=None,
                  padding=False, word_embeddings=None):
         super().__init__()
         self.subset = subset  # One of the following: [train, test]
@@ -77,7 +81,8 @@ class PosDataset(Dataset):
         self.file = os.path.join(dir_path, subset) + ".labeled"
         self.datareader = PosDataReader(self.file)
         # self.vocab_size = len(self.datareader.word_dict)
-        _, _, self.word_idx_mappings, self.pos_idx_mappings, self.word_idx_to_appearance = get_vocabs(self.file)
+        self.word_idx_mappings, self.pos_idx_mappings, self.word_idx_to_appearance = get_vocabs(self.file,
+                                                                                                vocab_dataset)
         self.unk_word_idx = self.word_idx_mappings[UNKNOWN_TOKEN]
         self.unk_pos_idx = self.pos_idx_mappings[UNKNOWN_TOKEN]
         self.sentences_dataset = self.convert_sentences_to_dataset()
