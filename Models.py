@@ -1,6 +1,8 @@
 from torch import nn
 import torch
 
+from inference import infer_heads
+
 
 class WordDropout(nn.Module):
     def __init__(self, appearance_count, a=0.25, unk_ind=0):
@@ -106,3 +108,15 @@ def nll_loss(out, true_heads):
     sum_exp = torch.sum(torch.exp(out), dim=1)
     log_sum_exp = torch.log(sum_exp)
     return torch.mean(- true_scores + log_sum_exp)
+
+
+def paper_loss(out, true_heads):
+    sentence_len = true_heads.shape[0]
+    modifiers = torch.arange(sentence_len)
+    true_score = torch.sum(out[:, true_heads, modifiers])
+    scores = out + 1
+    scores[:, true_heads, modifiers] -= 1
+    inferred_heads = infer_heads(scores)
+    inferred_score = torch.sum(out[:, inferred_heads, modifiers])
+    loss = torch.max(torch.tensor(0), true_score - inferred_score + 1)
+    return loss
