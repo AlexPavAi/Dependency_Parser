@@ -6,14 +6,17 @@ class WordDropout(nn.Module):
     def __init__(self, appearance_count, a=0.25, unk_ind=0):
         super().__init__()
         self.appearance_count = appearance_count
-        self.a = a
+        self.a = float(a)
         self.unk_ind = unk_ind
 
     def forward(self, word_idx, train):
         if train and self.appearance_count is not None:
-            p = self.a / (self.a + self.appearance_count[word_idx])
-            drop_idx = torch.rand(word_idx.shape, requires_grad=False) < p
-            word_idx[drop_idx] = self.unk_ind
+            out = word_idx.clone()
+            p = self.a / (self.a + self.appearance_count[word_idx.squeeze(0)])
+            drop_idx = torch.rand(word_idx.shape[1], requires_grad=False) < p
+            out[0][drop_idx] = self.unk_ind
+            return out
+        return word_idx
 
 
 class BaseNet(nn.Module):
