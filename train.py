@@ -1,6 +1,7 @@
 import torch
 import os
 import torch.nn as nn
+import matplotlib.pyplot as plt
 from BaseNet import BaseNet, nll_loss
 from torch import optim
 from data_loader import PosDataset
@@ -8,11 +9,14 @@ from torch.utils.data import DataLoader
 from inference import compute_uas
 
 
-os.environ["CUDA_VISIBLE_DEVICES"]='4,5,6'
+os.environ["CUDA_VISIBLE_DEVICES"]='2,3,6'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def train():
-    EPOCHS = 15
+    train_loss_array = []
+    train_UAS_array = []
+    test_UAS_array = []
+    EPOCHS = 2
     print_iter = 100
     test_epoch = 1
 
@@ -23,7 +27,7 @@ def train():
     model: BaseNet = BaseNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125, mlp_hidden_dim=100,
                              word_vocab_size=len(train_dataset.word_idx_mappings),
                              tag_vocab_size=len(train_dataset.pos_idx_mappings),
-                             appearance_count=train_dataset.word_idx_to_appearance, dropout_a=5,
+                             appearance_count=train_dataset.word_idx_to_appearance, dropout_a=0,
                              unk_word_ind=train_dataset.unk_word_idx)
 
     use_cuda = torch.cuda.is_available()
@@ -71,20 +75,52 @@ def train():
 
             if (i+1) % (acumulate_grad_steps * print_iter) == 0:
                 print("epoch", epoch+1, "iter", (i+1)//acumulate_grad_steps, "loss:", printable_loss)
+                train_loss_array.append(printable_loss)
                 printable_loss = 0
         if (epoch + 1) % test_epoch == 0:
             model.eval()
-            num_correct = 0
-            num_total = 0
+
+            num_correct_train = 0
+            num_total_train = 0
+            for i, input_data in enumerate(train_loader):
+                words_idx_tensor, pos_idx_tensor, true_heads, _ = input_data
+                true_heads = true_heads.squeeze(0)
+                num_total_train += true_heads.shape[0]
+                scores = model(words_idx_tensor, pos_idx_tensor)
+                _, curr_num_correct = compute_uas(scores, true_heads)
+                num_correct_train += curr_num_correct
+            print("UAS on train:", num_correct_train / num_total_train)
+            train_UAS_array.append(num_correct_train / num_total_train)
+
+            num_correct_test = 0
+            num_total_test = 0
             for i, input_data in enumerate(test_loader):
                 words_idx_tensor, pos_idx_tensor, true_heads, _ = input_data
                 true_heads = true_heads.squeeze(0)
-                num_total += true_heads.shape[0]
+                num_total_test += true_heads.shape[0]
                 scores = model(words_idx_tensor, pos_idx_tensor)
                 _, curr_num_correct = compute_uas(scores, true_heads)
-                num_correct += curr_num_correct
-            print("UAS on test:", num_correct/num_total)
+                num_correct_test += curr_num_correct
+            print("UAS on test:", num_correct_test/num_total_test)
+            test_UAS_array.append(num_correct_test/num_total_test)
             model.train()
+
+    plt.figure(1)
+    plt.plot(train_loss_array)
+    plt.ylabel('loss')
+    plt.xlabel('epochs')
+    plt.title('loss over epochs')
+    plt.savefig('loss over epochs')
+
+    plt.figure(2)
+    plt.plot(test_UAS_array,label="test")
+    plt.ylabel('UAS')
+    plt.xlabel('epochs')
+    plt.legend('UAS of test')
+    plt.plot(train_UAS_array,label="train")
+    plt.legend('UAS of train')
+    plt.title('UAS over epochs')
+    plt.savefig('UAS over epochs')
 
 
 train()
