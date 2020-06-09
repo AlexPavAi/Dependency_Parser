@@ -17,7 +17,7 @@ class WordDropout(nn.Module):
 
 
 class BaseNet(nn.Module):
-    def __init__(self, word_vocab_size, tag_vocab_size, appearance_count, word_emb_dim=100, tag_emb_dim=100,
+    def __init__(self, word_vocab_size, tag_vocab_size, appearance_count=None, word_emb_dim=100, tag_emb_dim=100,
                  lstm_hidden_dim=125, mlp_hidden_dim=100, dropout_a=0.25, unk_word_ind=0, device=None):
         super().__init__()
         if device is None:
@@ -53,8 +53,9 @@ class BaseNet(nn.Module):
 
 class AdvancedNet(nn.Module):
     def __init__(self, word_vocab_size, tag_vocab_size, word_emb_dim=100, tag_emb_dim=100,
-                 lstm_hidden_dim=125, mlp_hidden_dim=100, appearance_count=None, dropout_a=0.25, unk_word_ind=0,
-                 pre_trained_word_embedding=None, freeze_word_embedding=True, device=None):
+                 lstm_hidden_dim=125, lstm_dropout=0, mlp_hidden_dim=100, mlp_dropout=0, appearance_count=None,
+                 dropout_a=0.25, unk_word_ind=0, pre_trained_word_embedding=None, freeze_word_embedding=True,
+                 device=None):
         super().__init__()
         if device is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -62,14 +63,20 @@ class AdvancedNet(nn.Module):
             self.device = device
         self.word_dropout = WordDropout(appearance_count, dropout_a, unk_word_ind)
         if pre_trained_word_embedding is None:
-            self.word_embedding = nn.Embedding(word_vocab_size, word_emb_dim)  # (B, len(sentence))
+            self.word_embedding = nn.Embedding(word_vocab_size, word_emb_dim)
         else:
             self.word_embedding = nn.Embedding.from_pretrained(pre_trained_word_embedding, freeze=freeze_word_embedding)
         self.tag_embedding = nn.Embedding(tag_vocab_size, tag_emb_dim)    # (B, len(sentence))
         self.lstm = nn.LSTM(input_size=word_emb_dim + tag_emb_dim, hidden_size=lstm_hidden_dim, num_layers=2,
-                            batch_first=True, bidirectional=True)  # (B, len(sentence), 2 * hidden)
-        self.layer1_head = nn.Linear(2 * lstm_hidden_dim, mlp_hidden_dim)  # (B, len(sentence), mlp_hidden_dim)
-        self.layer1_modifier = nn.Linear(2 * lstm_hidden_dim, mlp_hidden_dim)  # (B, len(sentence), mlp_hidden_dim)
+                            batch_first=True, bidirectional=True, dropout=lstm_dropout)
+        self.layer1_head = nn.Sequential(
+            nn.Linear(2 * lstm_hidden_dim, mlp_hidden_dim),
+            nn.Dropout(p=mlp_dropout)
+        )
+        self.layer1_modifier = nn.Sequential(
+            nn.Linear(2 * lstm_hidden_dim, mlp_hidden_dim),
+            nn.Dropout(p=mlp_dropout)
+        )
         self.out_layer = nn.Linear(mlp_hidden_dim, 1)
 
     def forward(self, word_idx, tag_idx):
