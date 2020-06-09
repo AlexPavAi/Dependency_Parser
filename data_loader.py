@@ -11,14 +11,17 @@ ROOT_TOKEN = "<ROOT>"  # Optional: this is used to pad a batch of sentences in d
 SPECIAL_TOKENS = [UNKNOWN_TOKEN, ROOT_TOKEN]
 
 
-def get_vocabs(file_path, from_other_dataset=None):
+def get_vocabs(file_path, from_other_dataset=None, word_embeddings_name=None):
     """
         Extract vocabs from given datasets. Return a word2ids and tag2idx.
         :param from_other_dataset: getting vocab from the dataset from_dataset
         :param file_path: full path of the corpuses
+        :param word_embeddings_name: name pre trained word embedding wanted to use
             Return:
               - word2idx
               - tag2idx
+              - word index to number of appearances
+              - word vectors
     """
     if from_other_dataset is None:
         word_dict = defaultdict(int)
@@ -33,14 +36,15 @@ def get_vocabs(file_path, from_other_dataset=None):
                     word_dict[word] += 1
                     pos_dict[pos_tag] += 1
 
-        index_dict_word = Vocab(Counter(word_dict), specials=SPECIAL_TOKENS)
+        index_dict_word = Vocab(Counter(word_dict), specials=SPECIAL_TOKENS, vectors=word_embeddings_name)
         index_dict_pos = Vocab(Counter(pos_dict), specials=SPECIAL_TOKENS)
         word_idx_to_appearance = torch.zeros(len(index_dict_word.stoi), dtype=torch.float)
         for word in word_dict:
             word_idx_to_appearance[index_dict_word.stoi[word]] = word_dict.get(word, float('inf'))
-        return index_dict_word.stoi, index_dict_pos.stoi, word_idx_to_appearance
+        return index_dict_word.stoi, index_dict_pos.stoi, word_idx_to_appearance, index_dict_word.vectors
     else:
-        return from_other_dataset.word_idx_mappings, from_other_dataset.pos_idx_mappings, from_other_dataset.word_idx_to_appearance
+        return from_other_dataset.word_idx_mappings, from_other_dataset.pos_idx_mappings, \
+               from_other_dataset.word_idx_to_appearance, None
 
 
 class PosDataReader:
@@ -74,15 +78,16 @@ class PosDataReader:
 
 class PosDataset(Dataset):
     def __init__(self, dir_path: str, subset: str, vocab_dataset=None,
-                 padding=False, word_embeddings=None):
+                 word_embeddings_name=None):
         super().__init__()
         self.subset = subset  # One of the following: [train, test]
         # self.file = dir_path + subset + ".labeled"
         self.file = os.path.join(dir_path, subset) + ".labeled"
         self.datareader = PosDataReader(self.file)
         # self.vocab_size = len(self.datareader.word_dict)
-        self.word_idx_mappings, self.pos_idx_mappings, self.word_idx_to_appearance = get_vocabs(self.file,
-                                                                                                vocab_dataset)
+        self.word_idx_mappings, self.pos_idx_mappings, self.word_idx_to_appearance, self.word_embeddings = \
+            get_vocabs(self.file, vocab_dataset, word_embeddings_name)
+
         self.unk_word_idx = self.word_idx_mappings[UNKNOWN_TOKEN]
         self.unk_pos_idx = self.pos_idx_mappings[UNKNOWN_TOKEN]
         self.sentences_dataset = self.convert_sentences_to_dataset()
