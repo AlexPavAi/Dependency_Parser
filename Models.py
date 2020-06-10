@@ -11,8 +11,8 @@ class WordDropout(nn.Module):
         self.a = float(a)
         self.unk_ind = unk_ind
 
-    def forward(self, word_idx, train):
-        if train and self.appearance_count is not None:
+    def forward(self, word_idx):
+        if self.training and self.appearance_count is not None:
             out = word_idx.clone()
             p = self.a / (self.a + self.appearance_count[word_idx.squeeze(0)])
             drop_idx = torch.rand(word_idx.shape[1], requires_grad=False) < p
@@ -39,7 +39,7 @@ class BaseNet(nn.Module):
         self.out_layer = nn.Linear(mlp_hidden_dim, 1)
 
     def forward(self, word_idx, tag_idx):
-        self.word_dropout(word_idx, self.training)
+        self.word_dropout(word_idx)
         word_embeds = self.word_embedding(word_idx.to(self.device))
         tag_embeds = self.tag_embedding(tag_idx.to(self.device))
         x = torch.cat((word_embeds, tag_embeds), dim=2)
@@ -85,7 +85,7 @@ class AdvancedNet(nn.Module):
         self.out_layer = nn.Linear(mlp_hidden_dim, 1)
 
     def forward(self, word_idx, tag_idx):
-        self.word_dropout(word_idx, self.training)
+        self.word_dropout(word_idx)
         word_embeds = self.word_embedding(word_idx.to(self.device))
         tag_embeds = self.tag_embedding(tag_idx.to(self.device))
         x = torch.cat((word_embeds, tag_embeds), dim=2)
@@ -120,3 +120,4 @@ def paper_loss(out, true_heads):
     inferred_score = torch.sum(out[:, inferred_heads, modifiers])
     loss = torch.max(torch.tensor(0), true_score - inferred_score + 1)
     return loss
+
