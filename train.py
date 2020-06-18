@@ -2,7 +2,7 @@ import torch
 import os
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from Models import BaseNet, AdvancedNet, nll_loss
+from Models import BaseNet, AdvancedNet, nll_loss, paper_loss
 from torch import optim
 from data_loader import PosDataset
 from torch.utils.data import DataLoader
@@ -24,11 +24,12 @@ def train():
     train_loader = DataLoader(train_dataset, shuffle=True)
     test_dataset = PosDataset('data', 'test', vocab_dataset=train_dataset)
     test_loader = DataLoader(test_dataset, shuffle=False)
-    model: AdvancedNet = AdvancedNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125, mlp_hidden_dim=100,
+    model: AdvancedNet = AdvancedNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125,
+                                     attn_type='additive', attn_hidden_dim=100, attn_dropout=0,
                                      word_vocab_size=len(train_dataset.word_idx_mappings),
                                      tag_vocab_size=len(train_dataset.pos_idx_mappings),
                                      appearance_count=train_dataset.word_idx_to_appearance, dropout_a=0,
-                                     unk_word_ind=train_dataset.unk_word_idx, mlp_dropout=0,
+                                     unk_word_ind=train_dataset.unk_word_idx,
                                      pre_trained_word_embedding=train_dataset.word_embeddings)
 
     use_cuda = torch.cuda.is_available()

@@ -1,3 +1,4 @@
+import numpy as np
 from torch import nn
 import torch
 
@@ -19,6 +20,51 @@ class WordDropout(nn.Module):
             out[0][drop_idx] = self.unk_ind
             return out
         return word_idx
+
+
+class AdditiveAttention(nn.Module):
+    def __init__(self, in_dim, hidden_dim=100, dropout=0.1):
+        super().__init__()
+        self.layer1_head = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.Dropout(p=dropout)
+        )
+        self.layer1_modifier = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.Dropout(p=dropout)
+        )
+        self.out_layer = nn.Linear(hidden_dim, 1)
+
+    def forward(self, q, k):
+        q = self.layer1_head(q)
+        k = self.layer1_modifier(k)
+        q = q.repeat(1, q.shape[1], 1).view(q.shape[0], q.shape[1], q.shape[1], -1)
+        q = q.transpose(1, 2)
+        k = k.repeat(1, k.shape[1], 1).view(k.shape[0], k.shape[1], k.shape[1], -1)
+        out = q + k
+        out = torch.tanh(out)
+        out = self.out_layer(out).squeeze(3)
+        return out
+
+
+class MultiplicativeAttention(nn.Module):
+    def __init__(self, in_dim, hidden_dim=100, dropout=0.1):
+        super().__init__()
+        self.layer_head = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.Dropout(p=dropout)
+        )
+        self.layer_modifier = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.Dropout(p=dropout)
+        )
+
+    def forward(self, q, k):
+        q = self.layer_head(q)
+        k = self.layer_modifier(k)
+        k = k.transpose(1, 2)
+        out = torch.bmm(q, k)
+        return out
 
 
 class BaseNet(nn.Module):
@@ -58,7 +104,7 @@ class BaseNet(nn.Module):
 
 class AdvancedNet(nn.Module):
     def __init__(self, word_vocab_size, tag_vocab_size, word_emb_dim=100, tag_emb_dim=100,
-                 lstm_hidden_dim=125, lstm_dropout=0, mlp_hidden_dim=100, mlp_dropout=0, appearance_count=None,
+                 lstm_hidden_dim=125, lstm_dropout=0, attn_type='additive', attn_hidden_dim=100, attn_dropout=0, appearance_count=None,
                  dropout_a=0.25, unk_word_ind=0, pre_trained_word_embedding=None, freeze_word_embedding=True,
                  device=None):
         super().__init__()
@@ -74,15 +120,11 @@ class AdvancedNet(nn.Module):
         self.tag_embedding = nn.Embedding(tag_vocab_size, tag_emb_dim)    # (B, len(sentence))
         self.lstm = nn.LSTM(input_size=word_emb_dim + tag_emb_dim, hidden_size=lstm_hidden_dim, num_layers=2,
                             batch_first=True, bidirectional=True, dropout=lstm_dropout)
-        self.layer1_head = nn.Sequential(
-            nn.Linear(2 * lstm_hidden_dim, mlp_hidden_dim),
-            nn.Dropout(p=mlp_dropout)
-        )
-        self.layer1_modifier = nn.Sequential(
-            nn.Linear(2 * lstm_hidden_dim, mlp_hidden_dim),
-            nn.Dropout(p=mlp_dropout)
-        )
-        self.out_layer = nn.Linear(mlp_hidden_dim, 1)
+        if attn_type == 'additive':
+            self.attn = AdditiveAttention(in_dim=2*lstm_hidden_dim, hidden_dim=attn_hidden_dim, dropout=attn_dropout)
+        if attn_type == 'multiplicative':
+            self.attn = MultiplicativeAttention(in_dim=2*lstm_hidden_dim, hidden_dim=attn_hidden_dim,
+                                                dropout=attn_dropout)
 
     def forward(self, word_idx, tag_idx):
         self.word_dropout(word_idx)
@@ -90,16 +132,8 @@ class AdvancedNet(nn.Module):
         tag_embeds = self.tag_embedding(tag_idx.to(self.device))
         x = torch.cat((word_embeds, tag_embeds), dim=2)
         lstm_out, _ = self.lstm(x)
-        vh = self.layer1_head(lstm_out)
-        vm = self.layer1_modifier(lstm_out)
-        vh = vh.repeat(1, vh.shape[1], 1).view(vh.shape[0], vh.shape[1], vh.shape[1], -1)
-        vh = vh.transpose(1, 2)
-        vm = vm.repeat(1, vm.shape[1], 1).view(vm.shape[0], vm.shape[1], vm.shape[1], -1)
-        out = vh + vm
-        out = torch.tanh(out)
-        out = self.out_layer(out).squeeze(3)
-        out = out[:, :, 1:]
-        return out
+        out = self.attn(q=lstm_out, k=lstm_out)
+        return out[:, :, 1:]
 
 
 def nll_loss(out, true_heads):
@@ -118,6 +152,7 @@ def paper_loss(out, true_heads):
     scores[:, true_heads, modifiers] -= 1
     inferred_heads = infer_heads(scores)
     inferred_score = torch.sum(out[:, inferred_heads, modifiers])
-    loss = torch.max(torch.tensor(0), true_score - inferred_score + 1)
+    e = np.sum(inferred_heads != true_heads.numpy())
+    loss = torch.max(torch.tensor(0.), true_score - inferred_score + 1 + e)
     return loss
 
