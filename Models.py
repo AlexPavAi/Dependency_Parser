@@ -148,11 +148,10 @@ def paper_loss(out, true_heads):
     sentence_len = true_heads.shape[0]
     modifiers = torch.arange(sentence_len)
     true_score = torch.sum(out[:, true_heads, modifiers])
-    scores = out + 1
-    scores[:, true_heads, modifiers] -= 1
-    inferred_heads = infer_heads(scores)
-    inferred_score = torch.sum(out[:, inferred_heads, modifiers])
-    e = np.sum(inferred_heads != true_heads.numpy())
-    loss = torch.max(torch.tensor(0.), true_score - inferred_score + 1 + e)
+    shifted_scores = out + 1
+    shifted_scores[:, true_heads, modifiers] -= 1
+    inferred_heads = infer_heads(shifted_scores)
+    inferred_score = torch.sum(shifted_scores[:, inferred_heads, modifiers])
+    loss = torch.max(torch.tensor(0.), inferred_score - true_score + 1)
     return loss
 

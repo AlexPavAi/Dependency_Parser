@@ -4,7 +4,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from Models import BaseNet, AdvancedNet, nll_loss, paper_loss
 from torch import optim
-from data_loader import PosDataset
+from data_loader import DpDataset
 from torch.utils.data import DataLoader
 from inference import compute_uas
 
@@ -20,9 +20,9 @@ def train():
     print_iter = 100
     test_epoch = 1
 
-    train_dataset = PosDataset('data', 'train', word_embeddings_name="glove.6B.100d")
+    train_dataset = DpDataset('data', 'train', word_embeddings_name="glove.6B.100d")
     train_loader = DataLoader(train_dataset, shuffle=True)
-    test_dataset = PosDataset('data', 'test', vocab_dataset=train_dataset)
+    test_dataset = DpDataset('data', 'test', vocab_dataset=train_dataset)
     test_loader = DataLoader(test_dataset, shuffle=False)
     model: AdvancedNet = AdvancedNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125,
                                      attn_type='additive', attn_hidden_dim=100, attn_dropout=0,
@@ -66,6 +66,7 @@ def train():
             scores = model(words_idx_tensor, pos_idx_tensor)
             # loss = nll_loss(scores, true_heads.to(model.device))
             loss = nll_loss(scores.to("cpu"), true_heads)
+            # loss = paper_loss(scores.to("cpu"), true_heads)
 
             loss = loss / acumulate_grad_steps
             loss.backward()

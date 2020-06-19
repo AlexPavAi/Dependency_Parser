@@ -47,7 +47,7 @@ def get_vocabs(file_path, from_other_dataset=None, word_embeddings_name=None):
                from_other_dataset.word_idx_to_appearance, None
 
 
-class PosDataReader:
+class DpDataReader:
     def __init__(self, file):
         self.file = file
         # self.word_dict = word_dict
@@ -76,14 +76,14 @@ class PosDataReader:
         return len(self.sentences)
 
 
-class PosDataset(Dataset):
+class DpDataset(Dataset):
     def __init__(self, dir_path: str, subset: str, vocab_dataset=None,
                  word_embeddings_name=None):
         super().__init__()
         self.subset = subset  # One of the following: [train, test]
         # self.file = dir_path + subset + ".labeled"
         self.file = os.path.join(dir_path, subset) + ".labeled"
-        self.datareader = PosDataReader(self.file)
+        self.datareader = DpDataReader(self.file)
         # self.vocab_size = len(self.datareader.word_dict)
         self.word_idx_mappings, self.pos_idx_mappings, self.word_idx_to_appearance, self.word_embeddings = \
             get_vocabs(self.file, vocab_dataset, word_embeddings_name)
@@ -131,7 +131,7 @@ def main():
     # get_vocabs(list_of_pathes)
     dir_path = "data"
     str = "train"
-    train = PosDataset(data_dir, str)
+    train = DpDataset(data_dir, str)
     train_dataloader = DataLoader(train, shuffle=True)
     print("")
 
