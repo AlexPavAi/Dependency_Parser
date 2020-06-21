@@ -2,7 +2,7 @@ import torch
 import os
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from Models import BaseNet, AdvancedNet, nll_loss, paper_loss
+from Models import BaseNet, AdvancedNet, TransformerModel, nll_loss, paper_loss
 from torch import optim
 from data_loader import DpDataset
 from torch.utils.data import DataLoader
@@ -11,26 +11,39 @@ from inference import compute_uas
 
 os.environ["CUDA_VISIBLE_DEVICES"]='2,3,6'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = 'cpu'
+
 
 def train():
     train_loss_array = []
     train_UAS_array = []
     test_UAS_array = []
     EPOCHS = 2
-    print_iter = 100
+    print_iter = 10
     test_epoch = 1
 
     train_dataset = DpDataset('data', 'train', word_embeddings_name="glove.6B.100d")
+    # train_dataset = DpDataset('data', 'train', word_embeddings_name=None)
     train_loader = DataLoader(train_dataset, shuffle=True)
     test_dataset = DpDataset('data', 'test', vocab_dataset=train_dataset)
     test_loader = DataLoader(test_dataset, shuffle=False)
-    model: AdvancedNet = AdvancedNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125,
-                                     attn_type='additive', attn_hidden_dim=100, attn_dropout=0,
-                                     word_vocab_size=len(train_dataset.word_idx_mappings),
-                                     tag_vocab_size=len(train_dataset.pos_idx_mappings),
-                                     appearance_count=train_dataset.word_idx_to_appearance, dropout_a=0,
-                                     unk_word_ind=train_dataset.unk_word_idx,
-                                     pre_trained_word_embedding=train_dataset.word_embeddings)
+    # model: AdvancedNet = AdvancedNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125,
+    #                                  attn_type='additive', attn_hidden_dim=100, attn_dropout=0,
+    #                                  word_vocab_size=len(train_dataset.word_idx_mappings),
+    #                                  tag_vocab_size=len(train_dataset.pos_idx_mappings),
+    #                                  appearance_count=train_dataset.word_idx_to_appearance, dropout_a=0,
+    #                                  unk_word_ind=train_dataset.unk_word_idx,
+    #                                  pre_trained_word_embedding=train_dataset.word_embeddings)
+
+    model: TransformerModel = TransformerModel(word_vocab_size=len(train_dataset.word_idx_mappings),
+                                               tag_vocab_size=len(train_dataset.pos_idx_mappings),
+                                               appearance_count=train_dataset.word_idx_to_appearance,
+                                               unk_word_ind=train_dataset.unk_word_idx,
+                                               pre_trained_word_embedding=train_dataset.word_embeddings,
+                                               word_emb_dim=100, tag_emb_dim=100,
+                                               nhead=8, transformer_hidden=256, transformer_layers=2, transformer_dropout=0.5,
+                                               attn_type='additive', attn_hidden_dim=100, attn_dropout=0,
+                                               dropout_a=0.25, freeze_word_embedding=True)
 
     use_cuda = torch.cuda.is_available()
 

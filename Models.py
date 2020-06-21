@@ -1,7 +1,6 @@
-import numpy as np
+import math
 from torch import nn
 import torch
-
 from inference import infer_heads
 
 
@@ -104,9 +103,9 @@ class BaseNet(nn.Module):
 
 class AdvancedNet(nn.Module):
     def __init__(self, word_vocab_size, tag_vocab_size, word_emb_dim=100, tag_emb_dim=100,
-                 lstm_hidden_dim=125, lstm_dropout=0, attn_type='additive', attn_hidden_dim=100, attn_dropout=0, appearance_count=None,
-                 dropout_a=0.25, unk_word_ind=0, pre_trained_word_embedding=None, freeze_word_embedding=True,
-                 device=None):
+                 lstm_hidden_dim=125, lstm_dropout=0, attn_type='additive', attn_hidden_dim=100, attn_dropout=0,
+                 appearance_count=None, dropout_a=0.25, unk_word_ind=0,
+                 pre_trained_word_embedding=None, freeze_word_embedding=True, device=None):
         super().__init__()
         if device is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,6 +132,62 @@ class AdvancedNet(nn.Module):
         x = torch.cat((word_embeds, tag_embeds), dim=2)
         lstm_out, _ = self.lstm(x)
         out = self.attn(q=lstm_out, k=lstm_out)
+        return out[:, :, 1:]
+
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, max_len=300):
+        super(PositionalEncoding, self).__init__()
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return x
+
+
+class TransformerModel(nn.Module):
+    def __init__(self, word_vocab_size, tag_vocab_size, word_emb_dim=100, tag_emb_dim=100,
+                 nhead=8, transformer_hidden=256, transformer_layers=2, transformer_dropout=0.5,
+                 attn_type='additive', attn_hidden_dim=100, attn_dropout=0, appearance_count=None,
+                 dropout_a=0.25, unk_word_ind=0, pre_trained_word_embedding=None, freeze_word_embedding=True,
+                 device=None):
+        super().__init__()
+        self.inp_dim = word_emb_dim + tag_emb_dim
+        self.word_pos_encoder = PositionalEncoding(word_emb_dim)
+        self.tag_pos_encoder = PositionalEncoding(tag_emb_dim)
+        if device is None:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = device
+        self.word_dropout = WordDropout(appearance_count, dropout_a, unk_word_ind)
+        if pre_trained_word_embedding is None:
+            self.word_embedding = nn.Embedding(word_vocab_size, word_emb_dim)
+        else:
+            self.word_embedding = nn.Embedding.from_pretrained(pre_trained_word_embedding, freeze=freeze_word_embedding)
+        self.tag_embedding = nn.Embedding(tag_vocab_size, tag_emb_dim)
+        encoding_layer = nn.TransformerEncoderLayer(self.inp_dim, nhead, transformer_hidden, transformer_dropout)
+        self.encoder = nn.TransformerEncoder(encoding_layer, transformer_layers)
+        if attn_type == 'additive':
+            self.attn = AdditiveAttention(in_dim=self.inp_dim, hidden_dim=attn_hidden_dim, dropout=attn_dropout)
+        if attn_type == 'multiplicative':
+            self.attn = MultiplicativeAttention(in_dim=self.inp_dim, hidden_dim=attn_hidden_dim,
+                                                dropout=attn_dropout)
+
+    def forward(self, word_idx, tag_idx):
+        self.word_dropout(word_idx)
+        word_embeds = self.word_embedding(word_idx.to(self.device))
+        tag_embeds = self.tag_embedding(tag_idx.to(self.device))
+        x = torch.cat((word_embeds, tag_embeds), dim=2)
+        encoding = self.encoder(x)
+        out = self.attn(q=x, k=x)
         return out[:, :, 1:]
 
 
