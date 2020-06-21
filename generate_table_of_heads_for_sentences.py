@@ -60,7 +60,7 @@ epoch = checkpoint['epoch']
 loss = checkpoint['loss']
 
 inferred_head_all = np.zeros((num_sentences,1), dtype='object')
-for i, input_data in enumerate(comp_loader):
+for i, input_data in enumerate(train_loader):
     words_idx_tensor, pos_idx_tensor, true_heads, _ = input_data
     true_heads = true_heads.squeeze(0)
 
@@ -70,7 +70,7 @@ for i, input_data in enumerate(comp_loader):
     assert ((true_heads.shape[0]) == infered_heads.shape[0])
 
     # usa = compute_uas(scores, true_heads, squeeze=True)
-save_obj(inferred_head_all,'inferred_heads_comp')
+save_obj(inferred_head_all,'inferred_heads_train')
 print("file saved")
 print("")
 
