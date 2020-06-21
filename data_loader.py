@@ -65,7 +65,10 @@ class DpDataReader:
                     # print(line)
                     word = splited_words[1]
                     pos_tag = splited_words[3]
-                    head_index = int(splited_words[6])
+                    if splited_words[6]!='_':
+                        head_index = int(splited_words[6])
+                    else:
+                        head_index = int(-1)
                     cur_sentence.append((word, pos_tag, head_index))
                 else:
                     self.sentences.append(cur_sentence)
@@ -82,7 +85,12 @@ class DpDataset(Dataset):
         super().__init__()
         self.subset = subset  # One of the following: [train, test]
         # self.file = dir_path + subset + ".labeled"
-        self.file = os.path.join(dir_path, subset) + ".labeled"
+        if os.path.isfile(os.path.join(dir_path, subset) + ".labeled"):
+            self.file = os.path.join(dir_path, subset) + ".labeled" #TODO: uncomment this for training
+        else:
+            self.file = os.path.join(dir_path, subset) + ".unlabeled"
+
+
         self.datareader = DpDataReader(self.file)
         # self.vocab_size = len(self.datareader.word_dict)
         self.word_idx_mappings, self.pos_idx_mappings, self.word_idx_to_appearance, self.word_embeddings = \
