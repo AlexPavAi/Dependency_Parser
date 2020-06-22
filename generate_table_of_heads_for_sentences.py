@@ -54,10 +54,11 @@ model.to(device)
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 PATH = "BEST_MODEL.PTH"
 checkpoint = torch.load(PATH)
-model.load_state_dict(checkpoint['model_state_dict'], strict = False)
+model.load_state_dict(checkpoint['model_state_dict'])
 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 epoch = checkpoint['epoch']
 loss = checkpoint['loss']
+model.eval()
 
 inferred_head_all = np.zeros((num_sentences,1), dtype='object')
 for i, input_data in enumerate(train_loader):
