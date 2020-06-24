@@ -4,9 +4,11 @@ from misc import save_obj, load_obj
 data_folder = 'data'
 data_comp_file = 'comp.unlabeled'
 data_train_file = 'train.labeled'
-file_to_write = 'tagged_train_file.labeled'
-inferred_head_table = load_obj('inferred_heads_train')
-file_to_tag = os.path.join(data_folder,data_train_file)
+data_test_file = 'test.labeled'
+
+file_to_write = 'tagged_comp_file.labeled'
+inferred_head_table = load_obj('inferred_heads_comp')
+file_to_tag = os.path.join(data_folder,data_comp_file)
 
 sentence_counter = 0
 word_in_sentence = 0

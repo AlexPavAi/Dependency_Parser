@@ -14,22 +14,47 @@ from misc import save_obj, load_obj
 num_sentences = 5000
 data_folder = 'data'
 data_file_train = 'train'
+data_file_test = 'test'
 data_file_comp = 'comp'
 train_dataset = DpDataset(data_folder,data_file_train, word_embeddings_name="glove.6B.100d")
 train_loader = DataLoader(train_dataset, shuffle=False)
 
-comp_dataset = DpDataset(data_folder,data_file_comp, word_embeddings_name="glove.6B.100d")
+test_dataset = DpDataset('data', 'test', vocab_dataset=train_dataset)
+test_loader = DataLoader(test_dataset, shuffle=False)
+
+# test_dataset = DpDataset(data_folder,data_file_test, word_embeddings_name="glove.6B.100d")
+# test_loader = DataLoader(test_dataset, shuffle=False)
+
+# comp_dataset = DpDataset(data_folder,data_file_comp, word_embeddings_name="glove.6B.100d")
+# comp_loader = DataLoader(comp_dataset, shuffle=False)
+
+comp_dataset = DpDataset('data', 'comp', vocab_dataset=train_dataset)
 comp_loader = DataLoader(comp_dataset, shuffle=False)
 
-dropout_a = 2
-attn_dropout = 0.5
+# dropout_a = 2
+# attn_dropout = 0.5
+# # attn_dropout = 0
+# # dropout_a = 0
+# EPOCHS = 2
+# learning_rate = 0.005
+# attn_type='additive'
+# # loss_types = ['nll','paper']
+# loss_type= 'nll'
+
+
+attn_type='multiplicative'
+# loss_types = ['nll','paper']
+# loss_type= 'nll'
+loss_type='paper'
+dropout_a = 5
+attn_dropout = 0.25
 # attn_dropout = 0
 # dropout_a = 0
-EPOCHS = 2
+EPOCHS = 25
 learning_rate = 0.005
-attn_type='additive'
-# loss_types = ['nll','paper']
-loss_type= 'nll'
+counter_fig = 1
+max_UAS = 0
+best_values = [0,0,0,0]
 
 os.environ["CUDA_VISIBLE_DEVICES"]='0,1'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -52,7 +77,7 @@ else:
 model.to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-PATH = "BEST_MODEL.PTH"
+PATH = "BEST_MODEL_RECENT.PTH"
 checkpoint = torch.load(PATH)
 model.load_state_dict(checkpoint['model_state_dict'])
 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -61,7 +86,7 @@ loss = checkpoint['loss']
 model.eval()
 
 inferred_head_all = np.zeros((num_sentences,1), dtype='object')
-for i, input_data in enumerate(train_loader):
+for i, input_data in enumerate(comp_loader):
     words_idx_tensor, pos_idx_tensor, true_heads, _ = input_data
     true_heads = true_heads.squeeze(0)
 
@@ -71,7 +96,7 @@ for i, input_data in enumerate(train_loader):
     assert ((true_heads.shape[0]) == infered_heads.shape[0])
 
     # usa = compute_uas(scores, true_heads, squeeze=True)
-save_obj(inferred_head_all,'inferred_heads_train')
+save_obj(inferred_head_all,'inferred_heads_comp')
 print("file saved")
 print("")
 

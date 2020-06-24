@@ -2,13 +2,13 @@ import os
 import numpy as np
 
 folder = 'data'
-ground_truth = 'train.labeled'
+ground_truth = 'test.labeled'
 original_train = os.path.join(folder,ground_truth)
-predicted = 'tagged_train_file.labeled'
+predicted = 'tagged_test_file.labeled'
 
 
-
-num_sentences = 5000
+# change to the relevant size #
+num_sentences = 1000
 
 def get_all_heads_from_file(file):
     sentence_num = 0
@@ -37,6 +37,7 @@ def calc_uas(GT,predicted):
     for i in range(num_sentences):
         num_correct = np.sum(gt_train_heads[i, 0] == pred_train_heads[i, 0])
         correct_sum += num_correct
+        curr_sentence = gt_train_heads[i,0]
         num_words_in_sentence = gt_train_heads[i, 0].shape[0]
         total_num_words += num_words_in_sentence
         curr_uas = num_correct / num_words_in_sentence

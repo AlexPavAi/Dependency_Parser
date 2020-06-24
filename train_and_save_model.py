@@ -1,31 +1,23 @@
 import torch
 import os
 import torch.nn as nn
-import matplotlib.pyplot as plt
 from Models import BaseNet, AdvancedNet, nll_loss, paper_loss
 from torch import optim
 from data_loader import DpDataset
 from torch.utils.data import DataLoader
-from inference import compute_uas
-
 
 os.environ["CUDA_VISIBLE_DEVICES"]='0,1'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def train(loss_type, attn_type, dropout_a, attn_dropout, EPOCHS, counter_fig, learning_rate):
-    PATH = "BEST_MODEL.PTH"
+def train(loss_type, attn_type, dropout_a, attn_dropout, EPOCHS, learning_rate):
+    PATH = "BEST_MODEL_RECENT.PTH"
     train_loss_array = []
-    train_UAS_array = []
-    test_UAS_array = []
     print_iter = 100
-    test_epoch = 1
     print(f'device is: {device}')
 
     train_dataset = DpDataset('data', 'train', word_embeddings_name="glove.6B.100d")
     train_loader = DataLoader(train_dataset, shuffle=True)
-    test_dataset = DpDataset('data', 'test', vocab_dataset=train_dataset)
-    test_loader = DataLoader(test_dataset, shuffle=False)
     model: AdvancedNet = AdvancedNet(word_emb_dim=100, tag_emb_dim=100, lstm_hidden_dim=125,
                                      attn_type=attn_type, attn_hidden_dim=100, attn_dropout=attn_dropout,
                                      word_vocab_size=len(train_dataset.word_idx_mappings),
@@ -33,8 +25,6 @@ def train(loss_type, attn_type, dropout_a, attn_dropout, EPOCHS, counter_fig, le
                                      appearance_count=train_dataset.word_idx_to_appearance, dropout_a=dropout_a,
                                      unk_word_ind=train_dataset.unk_word_idx,
                                      pre_trained_word_embedding=train_dataset.word_embeddings)
-
-    use_cuda = torch.cuda.is_available()
 
     if torch.cuda.device_count() > 1:
         print("Running on", torch.cuda.device_count(), "GPUs.")
@@ -88,18 +78,17 @@ def train(loss_type, attn_type, dropout_a, attn_dropout, EPOCHS, counter_fig, le
 
 
 # attn_types =['additive', 'multiplicative']
-attn_type='additive'
+attn_type='multiplicative'
 # loss_types = ['nll','paper']
-loss_type= 'nll'
-# loss_type='paper'
-dropout_a = 2
-attn_dropout = 0.5
+# loss_type= 'nll'
+loss_type='paper'
+dropout_a = 5
+attn_dropout = 0.25
 # attn_dropout = 0
 # dropout_a = 0
-EPOCHS = 15
-learning_rate = 0.01
-counter_fig = 1
-max_UAS = 0
-best_values = [0,0,0,0]
+EPOCHS = 25
+learning_rate = 0.005
 
-test_aus = test_uas_short = train(loss_type,attn_type,dropout_a,attn_dropout, EPOCHS, counter_fig, learning_rate)
+
+
+train(loss_type,attn_type,dropout_a,attn_dropout, EPOCHS, learning_rate)
